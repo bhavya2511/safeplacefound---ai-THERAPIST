@@ -1,4 +1,4 @@
-SafePlace AI Therapist
+𝐬𝐚𝐟𝐞𝐩𝐥𝐚𝐜𝐞𝐟𝐨𝐮𝐧𝐝 
 
 SafePlace AI Therapist is a full-stack web application that provides mental health support through AI-driven interactions. Users can chat with an AI therapist to discuss feelings, receive advice, and track mental well-being.
 
