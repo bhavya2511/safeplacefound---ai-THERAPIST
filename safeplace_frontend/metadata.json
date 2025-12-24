@@ -1,0 +1,9 @@
+
+{
+  "name": "SafePlace AI Therapist",
+  "description": "A calming, immersive AI therapy application featuring a cinematic memory-ball homepage, interactive journaling, and empathetic AI chat.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}
