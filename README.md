@@ -2,6 +2,12 @@
 
 SafePlace AI Therapist is a full-stack web application that provides mental health support through AI-driven interactions. Users can chat with an AI therapist to discuss feelings, receive advice, and track mental well-being.
 
+
+<img width="3837" height="1737" alt="image" src="https://github.com/user-attachments/assets/71018c9e-d42d-4037-916b-67e0dec62d79" /><img width="3804" height="1563" alt="image" src="https://github.com/user-attachments/assets/05bcb48e-6a67-40da-aeae-0ff62bf1730a" />
+<img width="3837" height="1737" alt="image" src="https://github.com/user-attachments/assets/b3a9f0ae-6242-419b-87fa-2e0c449a66bc" />
+<img width="3783" height="1743" alt="image" src="https://github.com/user-attachments/assets/6f145e4c-84e6-4807-bd72-e8281ebbd5ad" />
+<img width="3780" height="1749" alt="image" src="https://github.com/user-attachments/assets/245838be-7901-496e-bfdb-c202958e45e1" />
+
 The project consists of a frontend (React) and a backend (Node.js/Express) with a database for storing user interactions.
 
 Features
@@ -36,11 +42,6 @@ RESTful API endpoints
 MongoDB / any preferred database (update as needed)
 
 Environment-based configuration for secrets
-<img width="3837" height="1737" alt="image" src="https://github.com/user-attachments/assets/71018c9e-d42d-4037-916b-67e0dec62d79" /><img width="3804" height="1563" alt="image" src="https://github.com/user-attachments/assets/05bcb48e-6a67-40da-aeae-0ff62bf1730a" />
-<img width="3837" height="1737" alt="image" src="https://github.com/user-attachments/assets/b3a9f0ae-6242-419b-87fa-2e0c449a66bc" />
-<img width="3783" height="1743" alt="image" src="https://github.com/user-attachments/assets/6f145e4c-84e6-4807-bd72-e8281ebbd5ad" />
-<img width="3780" height="1749" alt="image" src="https://github.com/user-attachments/assets/245838be-7901-496e-bfdb-c202958e45e1" />
-
 
 1. Clone the repository
 git clone https://github.com/bhavya2511/safeplacefound---ai-THERAPIST.git
