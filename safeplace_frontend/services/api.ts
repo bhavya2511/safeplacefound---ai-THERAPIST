@@ -1,11 +1,12 @@
 
 /**
  * SafePlace API Service
- * Optimized for local development in VS Code.
  */
 
-// If you are running your backend in VS Code on port 5000, this is the correct URL.
-const BASE_URL = 'http://localhost:5000/api'; 
+// In dev, Vite runs on :3000 and the backend runs separately on :5000.
+// In production (Vercel), frontend and API share one domain, so a relative
+// path is enough and there's no CORS/URL to configure.
+const BASE_URL = import.meta.env.DEV ? 'http://localhost:5000/api' : '/api';
 
 const getHeaders = () => {
   const token = localStorage.getItem('safeplace_token');
