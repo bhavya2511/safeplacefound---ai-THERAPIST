@@ -20,10 +20,44 @@ if (!MONGO_URI || !JWT_SECRET) {
   process.exit(1);
 }
 
-mongoose
-  .connect(MONGO_URI, { dbName: "ai_therapist" })
-  .then(() => console.log("✅ MongoDB connected"))
-  .catch(err => console.error(err));
+// Serverless functions can cold-start with no live MongoDB connection yet.
+// Mongoose's default query buffering waits for a connection that may or may
+// not arrive in time, which is why requests were succeeding or hanging
+// unpredictably. Instead, cache one connection per warm lambda container
+// (globalThis survives across invocations in the same container) and make
+// every request explicitly wait for it before touching the database.
+mongoose.set("bufferCommands", false);
+
+let cachedConn = globalThis._mongooseConn;
+if (!cachedConn) cachedConn = globalThis._mongooseConn = { conn: null, promise: null };
+
+async function connectDB() {
+  if (cachedConn.conn) return cachedConn.conn;
+  if (!cachedConn.promise) {
+    cachedConn.promise = mongoose
+      .connect(MONGO_URI, { dbName: "ai_therapist", serverSelectionTimeoutMS: 10000 })
+      .then(m => {
+        console.log("✅ MongoDB connected");
+        return m;
+      })
+      .catch(err => {
+        cachedConn.promise = null;
+        throw err;
+      });
+  }
+  cachedConn.conn = await cachedConn.promise;
+  return cachedConn.conn;
+}
+
+app.use(async (req, res, next) => {
+  try {
+    await connectDB();
+    next();
+  } catch (err) {
+    console.error("MongoDB connection error:", err);
+    res.status(503).json({ error: "Database unavailable, please try again" });
+  }
+});
 
 // ───────────────────── Models ─────────────────────
 const userSchema = new mongoose.Schema({
@@ -68,8 +102,14 @@ function authMiddleware(req, res, next) {
   }
 }
 
+// An unhandled rejection inside an async Express route never sends a
+// response — the request just hangs until the platform kills it. Wrap every
+// async route so failures (e.g. a bad OpenAI key, a dropped Mongo query)
+// always produce a real HTTP error instead of a silent hang.
+const asyncHandler = fn => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
+
 // ───────────────────── Auth Routes ─────────────────────
-app.post("/api/register", async (req, res) => {
+app.post("/api/register", asyncHandler(async (req, res) => {
   const { email, password } = req.body;
   if (!email || !password) return res.status(400).json({ error: "Missing fields" });
 
@@ -81,9 +121,9 @@ app.post("/api/register", async (req, res) => {
   const token = createToken(user);
 
   res.json({ id: user._id, email, token });
-});
+}));
 
-app.post("/api/login", async (req, res) => {
+app.post("/api/login", asyncHandler(async (req, res) => {
   const { email, password } = req.body;
   const user = await User.findOne({ email });
   if (!user) return res.status(401).json({ error: "Invalid credentials" });
@@ -93,10 +133,10 @@ app.post("/api/login", async (req, res) => {
 
   const token = createToken(user);
   res.json({ id: user._id, email, token });
-});
+}));
 
 // ───────────────────── Chat Routes ─────────────────────
-app.post("/api/chat", authMiddleware, async (req, res) => {
+app.post("/api/chat", authMiddleware, asyncHandler(async (req, res) => {
   const { message } = req.body;
   if (!message) return res.status(400).json({ error: "Message required" });
 
@@ -115,31 +155,38 @@ app.post("/api/chat", authMiddleware, async (req, res) => {
   await Message.create({ userId, sender: "bot", text: reply });
 
   res.json({ reply });
-});
+}));
 
 // ✅ New GET route to fetch chat history
-app.get("/api/chat", authMiddleware, async (req, res) => {
+app.get("/api/chat", authMiddleware, asyncHandler(async (req, res) => {
   const messages = await Message.find({ userId: req.user.userId }).sort({ createdAt: 1 });
   res.json(messages);
-});
+}));
 
 // ───────────────────── Journal Routes ─────────────────────
-app.post("/api/journal", authMiddleware, async (req, res) => {
+app.post("/api/journal", authMiddleware, asyncHandler(async (req, res) => {
   const { text, mood } = req.body;
   if (!text) return res.status(400).json({ error: "Text required" });
 
   const entry = await Journal.create({ userId: req.user.userId, text, mood });
   res.json(entry);
-});
+}));
 
-app.get("/api/journal", authMiddleware, async (req, res) => {
+app.get("/api/journal", authMiddleware, asyncHandler(async (req, res) => {
   const entries = await Journal.find({ userId: req.user.userId }).sort({ createdAt: -1 });
   res.json(entries);
-});
+}));
 
 // ───────────────────── Test / Root Route ─────────────────────
 app.get("/api", (req, res) => {
   res.send("✅ API is running. Available routes: /api/register, /api/login, /api/chat, /api/journal");
+});
+
+// Catches every asyncHandler rejection above so the client always gets a
+// response instead of a hung connection.
+app.use((err, req, res, next) => {
+  console.error("Request error:", err);
+  res.status(502).json({ error: err.message || "Request failed" });
 });
 
 // ───────────────────── Server ─────────────────────
