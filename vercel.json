@@ -1,0 +1,7 @@
+{
+  "buildCommand": "cd safeplace_frontend && npm install && npm run build",
+  "outputDirectory": "safeplace_frontend/dist",
+  "rewrites": [
+    { "source": "/api/(.*)", "destination": "/api" }
+  ]
+}
