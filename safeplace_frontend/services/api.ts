@@ -1,5 +1,4 @@
-
-/**
+﻿/**
  * SafePlace API Service
  */
 
@@ -12,7 +11,7 @@ const getHeaders = () => {
   const token = localStorage.getItem('safeplace_token');
   return {
     'Content-Type': 'application/json',
-    ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
   };
 };
 
@@ -22,7 +21,8 @@ export const api = {
    */
   checkHealth: async () => {
     try {
-      const res = await fetch(`${BASE_URL}/chat`, { method: 'GET', headers: getHeaders() });
+      // Use the public API root which is reachable without authentication
+      const res = await fetch(`${BASE_URL}`, { method: 'GET' });
       return res.ok;
     } catch {
       return false;
