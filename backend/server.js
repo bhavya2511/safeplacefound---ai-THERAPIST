@@ -209,10 +209,10 @@ async function callGoogleGenAI(message) {
   const key = process.env.GOOGLE_API_KEY;
   if (!key) return null;
   const model = process.env.GOOGLE_MODEL || 'gemini-3.1-flash-lite';
-  const url = `https://generativelanguage.googleapis.com/v1/models/${model}:generateText?key=${key}`;
+  const url = `https://generativelanguage.googleapis.com/v1/models/${model}:generateText`;
   try {
     const body = { prompt: { text: `You are a warm therapist AI. Respond kindly and concisely. User: ${message}` }, temperature: 0.7 };
-    const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` }, body: JSON.stringify(body) });
     const textRaw = await r.text();
     if (!textRaw) {
       console.warn('Google GenAI returned empty body');
