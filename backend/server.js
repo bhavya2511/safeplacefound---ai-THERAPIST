@@ -204,6 +204,35 @@ app.post("/api/login", asyncHandler(async (req, res) => {
 }));
 
 // ───────────────────── Chat Routes ─────────────────────
+// Helper: call Google Generative API using the runtime GOOGLE_API_KEY if present
+async function callGoogleGenAI(message) {
+  const key = process.env.GOOGLE_API_KEY;
+  if (!key) return null;
+  const model = process.env.GOOGLE_MODEL || 'gemini-3.1-flash-lite';
+  const url = `https://generativelanguage.googleapis.com/v1/models/${model}:generateText?key=${key}`;
+  try {
+    const body = { prompt: { text: `You are a warm therapist AI. Respond kindly and concisely. User: ${message}` }, temperature: 0.7 };
+    const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const json = await r.json();
+    // Recursively search for the first string in response
+    function findString(obj) {
+      if (typeof obj === 'string') return obj;
+      if (!obj || typeof obj !== 'object') return null;
+      for (const k of Object.keys(obj)) {
+        const v = obj[k];
+        const found = findString(v);
+        if (found) return found;
+      }
+      return null;
+    }
+    const text = findString(json);
+    return text || null;
+  } catch (e) {
+    console.error('Google GenAI call failed:', e);
+    return null;
+  }
+}
+
 app.post("/api/chat", authMiddleware, asyncHandler(async (req, res) => {
   const { message } = req.body;
   if (!message) return res.status(400).json({ error: "Message required" });
@@ -211,38 +240,43 @@ app.post("/api/chat", authMiddleware, asyncHandler(async (req, res) => {
   const userId = req.user.userId;
   await Message.create({ userId, sender: "user", text: message });
 
-  let reply = '';
-  const modelsToTry = [process.env.OPENAI_MODEL || "gpt-4o-mini", "gpt-4o", "gpt-3.5-turbo"];
-  let lastErr = null;
+  // 1) Try Google Gemini if available
+  let reply = null;
+  try {
+    reply = await callGoogleGenAI(message);
+  } catch (e) {
+    console.error('Google attempt error:', e);
+  }
 
-  for (const model of modelsToTry) {
-    try {
-      const ai = await openai.chat.completions.create({
-        model,
-        messages: [
-          { role: "system", content: "You are a warm therapist AI." },
-          { role: "user", content: message },
-        ],
-      });
-
-      reply = ai?.choices?.[0]?.message?.content ?? ai?.choices?.[0]?.text ?? '';
-      if (reply) break; // success
-    } catch (err) {
-      console.warn(`OpenAI model ${model} failed:`, err?.message ?? err);
-      lastErr = err;
-      // try next model
+  // 2) Fallback to OpenAI models
+  if (!reply) {
+    const modelsToTry = [process.env.OPENAI_MODEL || "gpt-4o-mini", "gpt-4o", "gpt-3.5-turbo"];
+    let lastErr = null;
+    for (const model of modelsToTry) {
+      try {
+        const ai = await openai.chat.completions.create({
+          model,
+          messages: [
+            { role: "system", content: "You are a warm therapist AI." },
+            { role: "user", content: message },
+          ],
+        });
+        reply = ai?.choices?.[0]?.message?.content ?? ai?.choices?.[0]?.text ?? '';
+        if (reply) break;
+      } catch (err) {
+        console.warn(`OpenAI model ${model} failed:`, err?.message ?? err);
+        lastErr = err;
+      }
+    }
+    if (!reply) {
+      console.error('All model attempts failed:', lastErr);
+      const errMsg = 'The therapist is temporarily unavailable. Please try again later.';
+      try { await Message.create({ userId, sender: "bot", text: errMsg }); } catch (e) { console.error('Failed to save error message:', e); }
+      return res.status(502).json({ error: 'All model requests failed', details: lastErr?.message ?? String(lastErr) });
     }
   }
 
-  if (!reply) {
-    console.error('All OpenAI model attempts failed:', lastErr);
-    const errMsg = 'The therapist is temporarily unavailable. Please try again later.';
-    try { await Message.create({ userId, sender: "bot", text: errMsg }); } catch (e) { console.error('Failed to save error message:', e); }
-    return res.status(502).json({ error: 'OpenAI request failed', details: lastErr?.message ?? String(lastErr) });
-  }
-
   await Message.create({ userId, sender: "bot", text: reply });
-
   res.json({ reply });
 }));
 
