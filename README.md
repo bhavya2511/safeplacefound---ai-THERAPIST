@@ -1,6 +1,8 @@
-﻿# SafePlace — AI Therapist
+﻿# SafePlace | AI Therapist
 
 SafePlace is a full‑stack web app that provides compassionate, private conversational support using an AI therapist. It combines a React + Vite frontend with a serverless-ready Express backend (connected to MongoDB) so the app can be deployed and run without keeping a personal server online.
+
+link: "https://safeplacefound-ai-therapist.vercel.app/"
 
 <!-- Screenshots (kept as in the original repo) -->
 <img width="3837" height="1737" alt="image" src="https://github.com/user-attachments/assets/71018c9e-d42d-4037-916b-67e0dec62d79" /><img width="3804" height="1563" alt="image" src="https://github.com/user-attachments/assets/05bcb48e-6a67-40da-aeae-0ff62bf1730a" />
