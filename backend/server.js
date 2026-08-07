@@ -153,23 +153,33 @@ app.post("/api/chat", authMiddleware, asyncHandler(async (req, res) => {
   await Message.create({ userId, sender: "user", text: message });
 
   let reply = '';
-  try {
-    const ai = await openai.chat.completions.create({
-      model: process.env.OPENAI_MODEL || "gpt-4o-mini",
-      messages: [
-        { role: "system", content: "You are a warm therapist AI." },
-        { role: "user", content: message },
-      ],
-    });
+  const modelsToTry = [process.env.OPENAI_MODEL || "gpt-4o-mini", "gpt-4o", "gpt-3.5-turbo"];
+  let lastErr = null;
 
-    // support multiple possible response shapes
-    reply = ai?.choices?.[0]?.message?.content ?? ai?.choices?.[0]?.text ?? '';
-    if (!reply) throw new Error('Empty reply from OpenAI');
-  } catch (err) {
-    console.error('OpenAI error:', err);
+  for (const model of modelsToTry) {
+    try {
+      const ai = await openai.chat.completions.create({
+        model,
+        messages: [
+          { role: "system", content: "You are a warm therapist AI." },
+          { role: "user", content: message },
+        ],
+      });
+
+      reply = ai?.choices?.[0]?.message?.content ?? ai?.choices?.[0]?.text ?? '';
+      if (reply) break; // success
+    } catch (err) {
+      console.warn(`OpenAI model ${model} failed:`, err?.message ?? err);
+      lastErr = err;
+      // try next model
+    }
+  }
+
+  if (!reply) {
+    console.error('All OpenAI model attempts failed:', lastErr);
     const errMsg = 'The therapist is temporarily unavailable. Please try again later.';
     try { await Message.create({ userId, sender: "bot", text: errMsg }); } catch (e) { console.error('Failed to save error message:', e); }
-    return res.status(502).json({ error: 'OpenAI request failed', details: err?.message ?? String(err) });
+    return res.status(502).json({ error: 'OpenAI request failed', details: lastErr?.message ?? String(lastErr) });
   }
 
   await Message.create({ userId, sender: "bot", text: reply });
