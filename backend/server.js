@@ -143,15 +143,26 @@ app.post("/api/chat", authMiddleware, asyncHandler(async (req, res) => {
   const userId = req.user.userId;
   await Message.create({ userId, sender: "user", text: message });
 
-  const ai = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
-    messages: [
-      { role: "system", content: "You are a warm therapist AI." },
-      { role: "user", content: message },
-    ],
-  });
+  let reply = '';
+  try {
+    const ai = await openai.chat.completions.create({
+      model: process.env.OPENAI_MODEL || "gpt-4o-mini",
+      messages: [
+        { role: "system", content: "You are a warm therapist AI." },
+        { role: "user", content: message },
+      ],
+    });
 
-  const reply = ai.choices[0].message.content;
+    // support multiple possible response shapes
+    reply = ai?.choices?.[0]?.message?.content ?? ai?.choices?.[0]?.text ?? '';
+    if (!reply) throw new Error('Empty reply from OpenAI');
+  } catch (err) {
+    console.error('OpenAI error:', err);
+    const errMsg = 'The therapist is temporarily unavailable. Please try again later.';
+    try { await Message.create({ userId, sender: "bot", text: errMsg }); } catch (e) { console.error('Failed to save error message:', e); }
+    return res.status(502).json({ error: 'OpenAI request failed', details: err?.message ?? String(err) });
+  }
+
   await Message.create({ userId, sender: "bot", text: reply });
 
   res.json({ reply });
