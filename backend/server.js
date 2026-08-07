@@ -93,6 +93,34 @@ app.get('/api/_check_openai', (req, res) => {
   }
 });
 
+// Developer-only test endpoint to try calling OpenAI with multiple models and
+// return per-model results for debugging deployment issues. Do not enable in
+// production if you don't want to expose provider errors publicly.
+app.get('/api/_openai_test', async (req, res) => {
+  const modelsToTry = [process.env.OPENAI_MODEL || 'gpt-4o-mini', 'gpt-4o', 'gpt-3.5-turbo'];
+  const results = [];
+  for (const model of modelsToTry) {
+    try {
+      const ai = await openai.chat.completions.create({
+        model,
+        messages: [
+          { role: 'system', content: 'You are a warm therapist AI for testing purposes.' },
+          { role: 'user', content: 'Say hello' }
+        ],
+        max_tokens: 64,
+      });
+      const reply = ai?.choices?.[0]?.message?.content ?? ai?.choices?.[0]?.text ?? null;
+      results.push({ model, ok: true, reply });
+    } catch (err) {
+      // Capture common OpenAI error information without leaking secrets
+      const msg = err?.message ?? String(err);
+      const status = err?.response?.status ?? null;
+      results.push({ model, ok: false, status, error: msg });
+    }
+  }
+  res.json({ results });
+});
+
 // ───────────────────── Auth ─────────────────────
 function createToken(user) {
   return jwt.sign({ userId: user._id.toString(), email: user.email }, JWT_SECRET, { expiresIn: "7d" });
