@@ -213,8 +213,20 @@ async function callGoogleGenAI(message) {
   try {
     const body = { prompt: { text: `You are a warm therapist AI. Respond kindly and concisely. User: ${message}` }, temperature: 0.7 };
     const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-    const json = await r.json();
-    // Recursively search for the first string in response
+    const textRaw = await r.text();
+    if (!textRaw) {
+      console.warn('Google GenAI returned empty body');
+      return null;
+    }
+    // If response is plain text, return it
+    // Otherwise try to parse JSON and extract a string
+    let parsed = null;
+    try {
+      parsed = JSON.parse(textRaw);
+    } catch (parseErr) {
+      // Not JSON; return raw text (trimmed)
+      return textRaw.trim();
+    }
     function findString(obj) {
       if (typeof obj === 'string') return obj;
       if (!obj || typeof obj !== 'object') return null;
@@ -225,7 +237,7 @@ async function callGoogleGenAI(message) {
       }
       return null;
     }
-    const text = findString(json);
+    const text = findString(parsed);
     return text || null;
   } catch (e) {
     console.error('Google GenAI call failed:', e);
