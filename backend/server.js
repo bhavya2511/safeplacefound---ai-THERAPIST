@@ -87,15 +87,13 @@ const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 // Quick debug endpoint to check whether the OPENAI_API_KEY is present in the runtime
 app.get('/api/_check_openai', (req, res) => {
   try {
-    res.json({ hasKey: !!process.env.OPENAI_API_KEY, modelEnv: process.env.OPENAI_MODEL || null });
+    res.json({ hasKey: !!process.env.OPENAI_API_KEY, modelEnv: process.env.OPENAI_MODEL || null, hasGoogleKey: !!process.env.GOOGLE_API_KEY });
   } catch (e) {
     res.status(500).json({ ok: false, error: String(e) });
   }
 });
 
-// Developer-only test endpoint to try calling OpenAI with multiple models and
-// return per-model results for debugging deployment issues. Do not enable in
-// production if you don't want to expose provider errors publicly.
+// Developer-only OpenAI test endpoint (unchanged)
 app.get('/api/_openai_test', async (req, res) => {
   const modelsToTry = [process.env.OPENAI_MODEL || 'gpt-4o-mini', 'gpt-4o', 'gpt-3.5-turbo'];
   const results = [];
@@ -112,10 +110,43 @@ app.get('/api/_openai_test', async (req, res) => {
       const reply = ai?.choices?.[0]?.message?.content ?? ai?.choices?.[0]?.text ?? null;
       results.push({ model, ok: true, reply });
     } catch (err) {
-      // Capture common OpenAI error information without leaking secrets
       const msg = err?.message ?? String(err);
       const status = err?.response?.status ?? null;
       results.push({ model, ok: false, status, error: msg });
+    }
+  }
+  res.json({ results });
+});
+
+// Developer-only Google Generative API test endpoint. If a GOOGLE_API_KEY is
+// configured in the runtime this will attempt to call multiple generation
+// endpoints and return the raw responses to help debug provider errors.
+app.get('/api/_google_test', async (req, res) => {
+  if (!process.env.GOOGLE_API_KEY) return res.status(400).json({ error: 'No GOOGLE_API_KEY configured' });
+  const key = process.env.GOOGLE_API_KEY;
+  const model = process.env.GOOGLE_MODEL || 'gemini-3.1-flash-lite';
+  const endpoints = [
+    `https://generativelanguage.googleapis.com/v1/models/${model}:generateText?key=${key}`,
+    `https://generativelanguage.googleapis.com/v1/models/${model}:generate?key=${key}`,
+    `https://generativelanguage.googleapis.com/v1/models/${model}:generateMessage?key=${key}`,
+    `https://generativelanguage.googleapis.com/v1/models/${model}:generateContent?key=${key}`,
+  ];
+
+  const results = [];
+  for (const url of endpoints) {
+    try {
+      // Try a few payload shapes depending on endpoint
+      let body = {};
+      if (url.includes(':generateText')) body = { prompt: { text: 'You are a helpful assistant. Reply with a single short sentence: Hello.' }, maxOutputTokens: 60 };
+      else if (url.includes(':generate')) body = { input: { text: 'You are a helpful assistant. Reply with a single short sentence: Hello.' }, maxOutputTokens: 60 };
+      else if (url.includes(':generateMessage')) body = { messages: [{ author: 'user', content: [{ type: 'text', text: 'You are a helpful assistant. Reply with a single short sentence: Hello.' }] }], maxOutputTokens: 60 };
+      else body = { prompt: { text: 'You are a helpful assistant. Reply with a single short sentence: Hello.' }, maxOutputTokens: 60 };
+
+      const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      const json = await r.json();
+      results.push({ url, status: r.status, ok: r.ok, body: json });
+    } catch (err) {
+      results.push({ url, ok: false, error: String(err) });
     }
   }
   res.json({ results });
