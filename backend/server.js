@@ -84,6 +84,15 @@ const Journal = mongoose.model("Journal", journalSchema);
 // ───────────────────── OpenAI ─────────────────────
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
+// Quick debug endpoint to check whether the OPENAI_API_KEY is present in the runtime
+app.get('/api/_check_openai', (req, res) => {
+  try {
+    res.json({ hasKey: !!process.env.OPENAI_API_KEY, modelEnv: process.env.OPENAI_MODEL || null });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e) });
+  }
+});
+
 // ───────────────────── Auth ─────────────────────
 function createToken(user) {
   return jwt.sign({ userId: user._id.toString(), email: user.email }, JWT_SECRET, { expiresIn: "7d" });
